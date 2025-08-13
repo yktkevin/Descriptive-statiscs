@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>數據探險隊：敘述統計</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#0f172a;         /* slate-900 */
+      --panel:#111827;      /* gray-900 */
+      --muted:#1f2937;      /* gray-800 */
+      --accent:#22c55e;     /* green-500 */
+      --accent-2:#60a5fa;   /* blue-400 */
+      --text:#e5e7eb;       /* gray-200 */
+      --sub:#9ca3af;        /* gray-400 */
+      --danger:#ef4444;
+      --warn:#f59e0b;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:'Noto Sans TC',system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--text);
+      background: radial-gradient(1000px 600px at 20% 0%, #111827 0%, #0b1227 40%, #0a0f1f 100%), var(--bg);
+    }
+    .container{max-width:1100px; margin:24px auto; padding:16px}
+    header{display:flex; gap:16px; align-items:center; justify-content:space-between; margin-bottom:16px}
+    .title{display:flex; gap:12px; align-items:center}
+    .title h1{font-size:22px; margin:0; letter-spacing:.5px}
+    .badge{font-size:12px; color:#0b1227; background:linear-gradient(135deg,#34d399,#60a5fa); padding:6px 10px; border-radius:999px; font-weight:700}
+
+    .grid{display:grid; grid-template-columns: 1.1fr .9fr; gap:16px}
+    @media (max-width: 920px){ .grid{grid-template-columns: 1fr} }
+
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,.06); border-radius:16px; padding:16px; box-shadow:0 10px 24px rgba(0,0,0,.25)}
+    .card h2{font-size:18px; margin:0 0 8px}
+    .sub{color:var(--sub); font-size:13px}
+
+    .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+    .kpi{background:var(--muted); padding:10px 12px; border-radius:12px; display:flex; gap:10px; align-items:center}
+    .kpi b{font-size:18px}
+
+    .progress{height:10px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden}
+    .progress > div{height:100%; width:0%; background:linear-gradient(90deg, #34d399, #60a5fa)}
+
+    table{width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px}
+    th,td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06)}
+    thead th{background:rgba(255,255,255,.05); text-align:left}
+    tbody tr:hover{background:rgba(255,255,255,.03)}
+
+    .btn{appearance:none; border:none; padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer; transition:transform .06s ease;
+      background:linear-gradient(180deg,#1f2937,#111827); color:var(--text); border:1px solid rgba(255,255,255,.06)}
+    .btn:hover{transform:translateY(-1px)}
+    .btn.primary{background:linear-gradient(135deg,#34d399,#60a5fa); color:#0b1227}
+    .btn.ghost{background:transparent}
+    .btn.warn{background:linear-gradient(135deg,#f59e0b,#fbbf24); color:#0b1227}
+
+    .level-tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px}
+    .tab{padding:8px 12px; border-radius:999px; background:rgba(255,255,255,.05); cursor:pointer; border:1px solid rgba(255,255,255,.06); font-weight:700; font-size:13px}
+    .tab.active{background:linear-gradient(135deg,#34d399,#60a5fa); color:#0b1227}
+
+    .input{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    input[type="number"], input[type="text"]{width:120px; background:#0b1227; color:var(--text); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px 12px}
+    .hint{font-size:13px; color:var(--sub)}
+    .result{padding:10px 12px; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06)}
+    .result.ok{outline:2px solid rgba(34,197,94,.7)}
+    .result.bad{outline:2px solid rgba(239,68,68,.7)}
+
+    .footer{display:flex; gap:10px; align-items:center; justify-content:space-between; margin-top:10px}
+    .chips{display:flex; gap:6px; flex-wrap:wrap}
+    .chip{font-size:12px; color:#0b1227; background:linear-gradient(135deg,#a78bfa,#60a5fa); padding:6px 10px; border-radius:999px; font-weight:700}
+    .note{font-size:12px; color:var(--sub)}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title">
+        <span class="badge">敘述統計 闖關</span>
+        <h1>數據探險隊：失落的寶藏</h1>
+      </div>
+      <div class="row">
+        <div class="kpi" title="目前關卡/總關卡"><span class="sub">進度</span> <b id="kpi-progress">1/3</b></div>
+        <div class="kpi" title="本局最佳成績"><span class="sub">最佳時間</span> <b id="kpi-best">--:--</b></div>
+      </div>
+    </header>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div class="sub">目標：完成每一關的小任務，蒐集 3 片地圖碎片！</div>
+          <div class="progress" style="margin-top:8px; width:360px; max-width:90vw">
+            <div id="progress-bar"></div>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn ghost" id="btn-newdata">🔄 重新產生數據</button>
+          <button class="btn warn" id="btn-reset">🗑 重置進度</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- 左：資料與圖表 -->
+      <section class="card">
+        <h2>探險數據</h2>
+        <div class="sub" id="dataset-desc">下表為某探險站每日溫度（°C），共 <span id="n-count"></span> 筆</div>
+        <div style="overflow:auto; margin-top:8px">
+          <table>
+            <thead><tr id="thead"></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:14px">
+          <canvas id="chart" height="160"></canvas>
+        </div>
+      </section>
+
+      <!-- 右：關卡互動 -->
+      <section class="card">
+        <div class="level-tabs" id="level-tabs"></div>
+        <div id="level-panel"></div>
+        <div class="footer">
+          <div class="chips" id="chips"></div>
+          <div class="note">提示：有小數請四捨五入到 <b id="round-note">小數第 2 位</b></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>說明</h2>
+      <div class="sub">本遊戲以 <b>樣本</b> 為預設：變異數使用 n−1，標準差為樣本標準差。圖表使用 Chart.js 動態更新。</div>
+    </div>
+  </div>
+
+  <script>
+    /********************** 工具函式 *************************/
+    const rnd = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
+    const shuffle = arr => arr.sort(()=>Math.random()-0.5);
+    const clamp = (v,a,b)=> Math.max(a, Math.min(b,v));
+
+    // 四捨五入到固定小數位
+    const round = (x, d=2)=> {
+      const p = 10**d; return Math.round((x + Number.EPSILON) * p) / p;
+    }
+
+    // 允許誤差比較（處理小數）
+    const approxEqual = (a,b,eps=1e-2)=> Math.abs(a-b) < eps;
+
+    // 敘述統計計算
+    function stats(arr){
+      const n = arr.length;
+      const mean = arr.reduce((s,x)=>s+x,0)/n;
+      const sorted = [...arr].sort((a,b)=>a-b);
+      const median = n%2? sorted[(n-1)/2] : (sorted[n/2-1] + sorted[n/2]) / 2;
+      const freq = new Map();
+      for(const x of arr){ freq.set(x, (freq.get(x)||0)+1); }
+      let maxF = 0; for(const v of freq.values()) maxF = Math.max(maxF, v);
+      const modes = [...freq.entries()].filter(([x,c])=> c===maxF).map(([x])=> Number(x)).sort((a,b)=>a-b);
+      const range = Math.max(...arr) - Math.min(...arr);
+      // 樣本變異數/標準差（n-1）
+      const ss = arr.reduce((s,x)=> s + (x-mean)**2, 0);
+      const variance = ss/(n-1);
+      const stdev = Math.sqrt(variance);
+      return {n, mean, median, modes, range, variance, stdev, sorted, freq};
+    }
+
+    /********************** 資料生成 *************************/
+    function makeDataset(){
+      // 讓資料有些重複，方便求眾數
+      const n = rnd(10, 14);
+      const base = rnd(12, 32); // 可能是溫度
+      const arr = [];
+      for(let i=0;i<n;i++) arr.push(base + rnd(-8,8));
+      // 注入 1-2 個重複值
+      for(let k=0;k<rnd(1,2);k++){
+        const val = base + rnd(-3,3);
+        for(let r=0;r<rnd(2,4);r++) arr.push(val);
+      }
+      // 截斷到合理範圍
+      for(let i=0;i<arr.length;i++) arr[i] = clamp(arr[i], -10, 45);
+      shuffle(arr);
+      return arr;
+    }
+
+    /********************** UI：表格 *************************/
+    function renderTable(arr){
+      const thead = document.getElementById('thead');
+      const tbody = document.getElementById('tbody');
+      const n = arr.length;
+      // 標題列
+      thead.innerHTML = '<th>#</th>'+Array.from({length: n}, (_,i)=>`<th>${i+1}</th>`).join('');
+      // 內容列（僅 1 列）
+      tbody.innerHTML = `<tr><td><b>值</b></td>${arr.map(x=>`<td>${x}</td>`).join('')}</tr>`;
+      document.getElementById('n-count').textContent = n;
+    }
+
+    /********************** UI：圖表（直方圖） *************************/
+    let chart;
+    function renderChart(arr){
+      const ctx = document.getElementById('chart');
+      // 建立桶 (bin)
+      const min = Math.min(...arr), max = Math.max(...arr);
+      const binWidth = Math.max(1, Math.ceil((max-min)/6));
+      const edges = [];
+      for(let v = min; v <= max + binWidth; v += binWidth) edges.push(v);
+      const counts = new Array(edges.length-1).fill(0);
+      for(const x of arr){
+        const idx = Math.min(edges.length-2, Math.floor((x-min)/binWidth));
+        counts[idx]++;
+      }
+      const labels = counts.map((c,i)=> `${edges[i]}–${edges[i+1]-1}`);
+
+      const data = {
+        labels,
+        datasets: [{
+          label: '次數（直方圖）',
+          data: counts,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.6)',
+          backgroundColor: 'rgba(96,165,250,0.35)'
+        }]
+      };
+      const options = {
+        responsive:true,
+        plugins:{
+          legend:{labels:{color:'#d1d5db'}},
+          tooltip:{callbacks:{
+            label:(ctx)=>`次數：${ctx.raw}`
+          }}
+        },
+        scales:{
+          x:{ticks:{color:'#cbd5e1'}, grid:{color:'rgba(255,255,255,0.06)'}},
+          y:{beginAtZero:true, ticks:{color:'#cbd5e1'}, grid:{color:'rgba(255,255,255,0.06)'}}
+        }
+      };
+      if(chart){ chart.destroy(); }
+      chart = new Chart(ctx, {type:'bar', data, options});
+    }
+
+    /********************** 關卡定義 *************************/
+    const levels = [
+      {
+        key:'mean_range',
+        title:'關卡 1：平均數 & 極差',
+        goal:'計算此資料的「平均數」與「極差」',
+        fields:[
+          {name:'平均數', id:'mean', type:'number', step:'0.01', hint:'把所有數字加總，除以筆數 n'},
+          {name:'極差', id:'range', type:'number', step:'1', hint:'最大值 − 最小值'}
+        ],
+        check:(arr, ans)=>{
+          const s = stats(arr);
+          const ok1 = approxEqual(Number(ans.mean), round(s.mean,2));
+          const ok2 = approxEqual(Number(ans.range), s.range, 0.5);
+          return {
+            correct: ok1 && ok2,
+            feedback: `正解：平均數 = ${round(s.mean,2)}，極差 = ${s.range}`
+          };
+        }
+      },
+      {
+        key:'median',
+        title:'關卡 2：中位數',
+        goal:'求出資料的「中位數」',
+        fields:[
+          {name:'中位數', id:'median', type:'number', step:'0.01', hint:'先排序，再取中間值；若為偶數筆，取兩個中間值的平均'}
+        ],
+        check:(arr, ans)=>{
+          const s = stats(arr);
+          const ok = approxEqual(Number(ans.median), round(s.median,2));
+          return {correct: ok, feedback:`正解：中位數 = ${round(s.median,2)}（已排序：${s.sorted.join(', ')}）`};
+        }
+      },
+      {
+        key:'mode_stdev',
+        title:'關卡 3：眾數 & 標準差（樣本）',
+        goal:'找出「眾數」與「樣本標準差」',
+        fields:[
+          {name:'眾數（若多個以逗號分隔）', id:'modes', type:'text', hint:'出現次數最多的值，可能不只一個'},
+          {name:'標準差（樣本）', id:'stdev', type:'number', step:'0.01', hint:'先算變異數：平方差和 / (n−1)，再開根號'}
+        ],
+        check:(arr, ans)=>{
+          const s = stats(arr);
+          const userModes = String(ans.modes).trim().split(/\s*,\s*/).filter(Boolean).map(Number).sort((a,b)=>a-b);
+          const okModes = JSON.stringify(userModes) === JSON.stringify(s.modes);
+          const okSd = approxEqual(Number(ans.stdev), round(s.stdev,2));
+          return {correct: okModes && okSd, feedback:`正解：眾數 = ${s.modes.join(', ')}；樣本標準差 = ${round(s.stdev,2)}（變異數 = ${round(s.variance,2)}）`};
+        }
+      }
+    ];
+
+    /********************** Level UI *************************/
+    let state = {
+      data: [],
+      levelIndex: 0,
+      startTime: null,
+      best: localStorage.getItem('ds_best') || null,
+      cleared: JSON.parse(localStorage.getItem('ds_cleared')||'[]')
+    };
+
+    function saveProgress(){
+      localStorage.setItem('ds_cleared', JSON.stringify(state.cleared));
+      if(state.best) localStorage.setItem('ds_best', state.best);
+    }
+
+    function fmtTime(ms){
+      const s = Math.floor(ms/1000); const m = Math.floor(s/60); const ss = s%60;
+      return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+    }
+
+    function updateKPI(){
+      document.getElementById('kpi-progress').textContent = `${state.cleared.length}/3`;
+      document.getElementById('kpi-best').textContent = state.best ? fmtTime(Number(state.best)) : '--:--';
+      const p = (state.cleared.length/3)*100; document.getElementById('progress-bar').style.width = `${p}%`;
+    }
+
+    function renderTabs(){
+      const tabs = document.getElementById('level-tabs');
+      tabs.innerHTML = '';
+      levels.forEach((lv, i)=>{
+        const el = document.createElement('div');
+        el.className = 'tab' + (i===state.levelIndex?' active':'');
+        const ok = state.cleared.includes(lv.key) ? ' ✅' : '';
+        el.textContent = lv.title + ok;
+        el.addEventListener('click', ()=> { state.levelIndex = i; renderLevel(); });
+        tabs.appendChild(el);
+      });
+    }
+
+    function renderLevel(){
+      renderTabs();
+      const lv = levels[state.levelIndex];
+      const panel = document.getElementById('level-panel');
+      panel.innerHTML = `
+        <h2 style="margin:0 0 6px">${lv.title}</h2>
+        <div class="sub" style="margin-bottom:10px">${lv.goal}</div>
+        <div class="input" id="input-wrap">
+          ${lv.fields.map(f=>`
+            <label class="row" style="gap:8px">
+              <span>${f.name}：</span>
+              <input id="field-${f.id}" type="${f.type}" step="${f.step||'any'}" placeholder="輸入答案" />
+            </label>
+            <span class="hint">${f.hint||''}</span>
+          `).join('')}
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn primary" id="btn-check">送出答案</button>
+          <button class="btn" id="btn-hint">提示</button>
+          <button class="btn ghost" id="btn-solution">看解答</button>
+        </div>
+        <div id="feedback" class="result" style="margin-top:10px; display:none"></div>
+      `;
+      document.getElementById('round-note').textContent = '小數第 2 位';
+      document.getElementById('btn-check').addEventListener('click', onCheck);
+      document.getElementById('btn-hint').addEventListener('click', onHint);
+      document.getElementById('btn-solution').addEventListener('click', onSolution);
+      renderChips();
+    }
+
+    function gatherAnswers(){
+      const lv = levels[state.levelIndex];
+      const ans = {};
+      lv.fields.forEach(f=>{
+        const v = document.getElementById(`field-${f.id}`).value;
+        ans[f.id] = v;
+      });
+      return ans;
+    }
+
+    function onCheck(){
+      const lv = levels[state.levelIndex];
+      const ans = gatherAnswers();
+      const res = lv.check(state.data, ans);
+      const fb = document.getElementById('feedback');
+      fb.style.display = 'block';
+      fb.textContent = res.feedback;
+      if(res.correct){
+        fb.className = 'result ok';
+        if(!state.cleared.includes(lv.key)) state.cleared.push(lv.key);
+        updateKPI();
+        saveProgress();
+        // 完成全部計時
+        if(state.cleared.length===3 && state.startTime){
+          const elapsed = Date.now() - state.startTime;
+          if(!state.best || elapsed < Number(state.best)){
+            state.best = String(elapsed); saveProgress(); updateKPI();
+          }
+          // 小彩帶
+          confetti();
+        }
+      }else{
+        fb.className = 'result bad';
+      }
+      renderTabs();
+    }
+
+    function onHint(){
+      const i = state.levelIndex;
+      const s = stats(state.data);
+      let msg = '';
+      if(i===0){ msg = `平均數 = 總和 / n；極差 = 最大值 − 最小值。總和 = ${s.sorted.reduce((a,b)=>a+b,0)}，n = ${s.n}`; }
+      else if(i===1){ msg = `先排序：${s.sorted.join(', ')}，再取中間值（偶數筆取兩者平均）。`; }
+      else { msg = `眾數是頻率最高值（例如 ${[...s.freq.entries()].slice(0,3).map(([x,c])=> x+':'+c).join('、')} ...）；樣本標準差 = √(平方差和/(n−1))，平方差和 = ${round(s.n * (s.variance),2)}。`; }
+      const fb = document.getElementById('feedback');
+      fb.style.display = 'block';
+      fb.className = 'result';
+      fb.textContent = msg;
+    }
+
+    function onSolution(){
+      const s = stats(state.data);
+      const sol = `平均數=${round(s.mean,2)}；中位數=${round(s.median,2)}；眾數=${s.modes.join(', ')}；極差=${s.range}；樣本變異數=${round(s.variance,2)}；樣本標準差=${round(s.stdev,2)}`;
+      const fb = document.getElementById('feedback');
+      fb.style.display = 'block';
+      fb.className = 'result';
+      fb.textContent = '完整解答：' + sol;
+    }
+
+    function renderChips(){
+      const wrap = document.getElementById('chips');
+      const s = stats(state.data);
+      wrap.innerHTML = '';
+      const chip = (k,v)=>{ const el = document.createElement('span'); el.className='chip'; el.textContent=`${k}: ${v}`; return el; };
+      wrap.appendChild(chip('n', s.n));
+      wrap.appendChild(chip('min', Math.min(...state.data)));
+      wrap.appendChild(chip('max', Math.max(...state.data)));
+      wrap.appendChild(chip('Σx', s.sorted.reduce((a,b)=>a+b,0)));
+    }
+
+    /********************** 動畫彩帶 *************************/
+    function confetti(){
+      const n = 140;
+      for(let i=0;i<n;i++){
+        const span = document.createElement('span');
+        const size = Math.random()*6+4;
+        span.style.position='fixed';
+        span.style.left = Math.random()*100 + 'vw';
+        span.style.top = '-10px';
+        span.style.width=size+'px'; span.style.height=size+'px';
+        span.style.background = `hsl(${Math.random()*360},80%,60%)`;
+        span.style.borderRadius = '2px';
+        span.style.opacity = .9;
+        span.style.transform = `rotate(${Math.random()*360}deg)`;
+        span.style.zIndex = 9999;
+        span.style.transition = `transform 2.2s ease-out, top 2.2s ease-out, opacity 2.2s ease-out`;
+        document.body.appendChild(span);
+        setTimeout(()=>{
+          span.style.top = '110vh';
+          span.style.transform = `translateY(${Math.random()*30+70}vh) rotate(${Math.random()*720}deg)`;
+          span.style.opacity = 0;
+        }, 20);
+        setTimeout(()=> span.remove(), 2600);
+      }
+    }
+
+    /********************** 初始化 *************************/
+    function newGame(resetTime=true){
+      state.data = makeDataset();
+      renderTable(state.data);
+      renderChart(state.data);
+      renderLevel();
+      renderChips();
+      if(resetTime){ state.startTime = Date.now(); }
+    }
+
+    document.getElementById('btn-newdata').addEventListener('click', ()=> newGame(false));
+    document.getElementById('btn-reset').addEventListener('click', ()=>{
+      localStorage.removeItem('ds_cleared');
+      localStorage.removeItem('ds_best');
+      state.cleared=[]; state.best=null; updateKPI(); newGame();
+    });
+
+    // 啟動
+    updateKPI();
+    newGame();
+  </script>
+</body>
+</html>
